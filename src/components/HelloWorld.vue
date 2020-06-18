@@ -16,41 +16,21 @@
     <br />
     <button @click="Root.addCount(2)">click</button>
     <button @click="Root.syncAddCount(10)">syncClick</button>
+    <hr />
+    <span
+      >{{ $store.state.Log.count }} -- {{ Log.count }} ---- {{ Log.info }}</span
+    >
+    <br />
+    <i>{{ Log.doubleCount }}</i>
+    <br />
+    <button @click="Log.addCount(1)">click</button>
+    <button @click="Log.syncAddCount(5)">syncClick</button>
   </div>
 </template>
 
 <script lang="ts">
 import { Component, Prop, Vue } from 'vue-property-decorator'
 import store from '../store'
-
-function InjectStore(module: string): Function {
-  return function(target: Function) {
-    const state = store.state[module]
-    const { getters, _mutations, _actions } = store as any
-    const gatherGetters: any = {}
-    const gatherMethods: any = {}
-    function mapKeys(obj: any, stack: any, type?: string) {
-      Object.keys(obj).map(item => {
-        let key = item.includes('/') ? item.split('/')[1] : item
-        stack[key] = !type
-          ? () => obj[item]
-          : (n: number) => store[type](item, n)
-      })
-    }
-    mapKeys(state, gatherGetters)
-    mapKeys(getters, gatherGetters)
-    mapKeys(_mutations, gatherMethods, 'commit')
-    mapKeys(_actions, gatherMethods, 'dispatch')
-    target.prototype[module] = new Vue({
-      computed: {
-        ...gatherGetters
-      },
-      methods: {
-        ...gatherMethods
-      }
-    })
-  }
-}
 
 type Foo = {
   str: string
@@ -68,7 +48,45 @@ interface Result<T> {
   data: T
 }
 
-@InjectStore('Root')
+function InjectStore(module: string | Array<string>): Function {
+  return function(target: Function) {
+    function mapKeys(obj: any, stack: any, module: string, type?: string) {
+      Object.keys(obj).map(item => {
+        const isState = !item.includes('/')
+        if (!isState && !item.startsWith(module)) {
+          return
+        }
+        let key = isState ? item : item.split('/')[1]
+        stack[key] = !type
+          ? () => obj[item]
+          : (n: number) => store[type](item, n)
+      })
+    }
+    if (typeof module === 'string') {
+      module = [module]
+    }
+    module.forEach(m => {
+      const state = store.state[m]
+      const { getters, _mutations, _actions } = store as any
+      const gatherGetters: any = {}
+      const gatherMethods: any = {}
+      mapKeys(state, gatherGetters, m)
+      mapKeys(getters, gatherGetters, m)
+      mapKeys(_mutations, gatherMethods, m, 'commit')
+      mapKeys(_actions, gatherMethods, m, 'dispatch')
+      target.prototype[m] = new Vue({
+        computed: {
+          ...gatherGetters
+        },
+        methods: {
+          ...gatherMethods
+        }
+      })
+    })
+  }
+}
+// @InjectStore('Root')
+@InjectStore(['Root', 'Log'])
 @Component
 export default class HelloWorld extends Vue {
   // props， private：私有属性，不能在类的外部访问， !称为明确赋值断⾔，它是提供给ts的

@@ -6,7 +6,7 @@ export default {
   },
   getters: {
     doubleCount(state: any) {
-      return state.count * 2
+      return state.count * 4
     }
   },
   mutations: {
